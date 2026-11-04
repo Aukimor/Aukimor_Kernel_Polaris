@@ -1,0 +1,144 @@
+name: Build polaris (staging 官方流)
+
+on:
+  workflow_dispatch:
+    inputs:
+      ksu:
+        description: '带 KSU root（默认 true，false 则关闭）'
+        required: false
+        default: 'true'
+
+permissions:
+  contents: read
+
+jobs:
+  Build-Kernel:
+    name: "🐎 Build polaris kernel (staging)"
+    runs-on: ubuntu-22.04
+    env:
+      WORKSPACE: ${{ github.workspace }}
+      KERNEL_NAME: kernel
+      KERNEL_DEVICE: polaris
+      DEFCONFIG_NAME: polaris_defconfig
+      ANYKERNEL_NAME: AnyKernel3
+      CLANG_DIR: ${{ github.workspace }}/google-clang
+    steps:
+      - name: "⭐ 取本仓库源码 + KernelSU 子模块"
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 1
+
+      - name: "⭐ Install prerequisites"
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential bc curl git zip gcc-aarch64-linux-gnu gcc-arm-linux-gnueabi libssl-dev zstd wget libfl-dev python3 libarchive-tools
+
+      - name: "🏷 源码版本"
+        run: |
+          git log --oneline -3
+          echo "== KSU 子模块:"
+          (cd KernelSU && git log --oneline -1) || echo "无 KernelSU 子模块"
+
+      - name: "⏰ Setup AnyKernel3 (unknownbaka 官方模板)"
+        run: git clone --depth=1 https://github.com/unknownbaka/AnyKernel3 $ANYKERNEL_NAME
+
+      - name: "💫 Get toolchain (clang-r614150, 对齐官方)"
+        run: |
+          git clone --depth=1 -b main-kernel https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86 clang-prebuilt
+          mv clang-prebuilt/clang-r614150 $CLANG_DIR
+          echo "$CLANG_DIR/bin" >> $GITHUB_PATH
+          ls $CLANG_DIR/bin | head
+
+      - name: "😎 Set build args"
+        id: generate-args
+        run: |
+          CB=$CLANG_DIR/bin
+          args="-j$(nproc --all)"
+          args="$args O=$WORKSPACE/out"
+          args="$args ARCH=arm64"
+          args="$args CC=$CB/clang"
+          args="$args LD=$CB/ld.lld"
+          args="$args AR=$CB/llvm-ar"
+          args="$args NM=$CB/llvm-nm"
+          args="$args STRIP=$CB/llvm-strip"
+          args="$args OBJCOPY=$CB/llvm-objcopy"
+          args="$args OBJDUMP=$CB/llvm-objdump"
+          args="$args OBJSIZE=$CB/llvm-size"
+          args="$args READELF=$CB/llvm-readelf"
+          args="$args HOSTCC=$CB/clang"
+          args="$args HOSTCXX=$CB/clang++"
+          args="$args HOSTAR=$CB/llvm-ar"
+          args="$args CLANG_TRIPLE=aarch64-linux-gnu-"
+          args="$args CROSS_COMPILE=aarch64-linux-gnu-"
+          args="$args CROSS_COMPILE_ARM32=arm-linux-gnueabi-"
+          echo "args=$args" >> $GITHUB_OUTPUT
+
+      - name: "🚫 关闭 KSU"
+        if: inputs.ksu == 'false'
+        working-directory: ${{ env.WORKSPACE }}
+        run: |
+          sed -i 's/^CONFIG_KSU=y/# CONFIG_KSU is not set/' arch/arm64/configs/polaris_defconfig
+          sed -i 's/^CONFIG_KSU_HEURISTIC_IN_TREE_BUILD=y/# CONFIG_KSU_HEURISTIC_IN_TREE_BUILD is not set/' arch/arm64/configs/polaris_defconfig
+          sed -i 's/^CONFIG_KSU_TAMPER_SYSCALL_TABLE=y/# CONFIG_KSU_TAMPER_SYSCALL_TABLE is not set/' arch/arm64/configs/polaris_defconfig
+          sed -i 's/^CONFIG_KSU_LSM_SECURITY_HOOKS=y/# CONFIG_KSU_LSM_SECURITY_HOOKS is not set/' arch/arm64/configs/polaris_defconfig
+          sed -i 's/^CONFIG_KSU_FEATURE_SULOG=y/# CONFIG_KSU_FEATURE_SULOG is not set/' arch/arm64/configs/polaris_defconfig
+          sed -i 's/^CONFIG_KSU_FEATURE_ADBROOT=y/# CONFIG_KSU_FEATURE_ADBROOT is not set/' arch/arm64/configs/polaris_defconfig
+          echo "== KSU 行残留检查（应无 =y）："
+          rg -n '^CONFIG_KSU.*=y' arch/arm64/configs/polaris_defconfig || echo "全部关闭"
+
+      - name: "👍 Make defconfig"
+        working-directory: ${{ env.WORKSPACE }}
+        run: make ${{ steps.generate-args.outputs.args }} $DEFCONFIG_NAME
+
+      - name: "🎶 Build kernel"
+        working-directory: ${{ env.WORKSPACE }}
+        run: make ${{ steps.generate-args.outputs.args }}
+
+      - name: "💛 Package AnyKernel3"
+        working-directory: ${{ env.ANYKERNEL_NAME }}
+        run: |
+          cp $WORKSPACE/out/arch/arm64/boot/Image.gz-dtb ./Image.gz-dtb
+          zip -r -9 $WORKSPACE/${{ env.KERNEL_DEVICE }}-staging-${{ github.run_id }}.zip .
+
+      - name: "📦 Package boot.img (mkbootimg, 洗 cmdline)"
+        run: |
+          cd $WORKSPACE
+          cp tools/stock-ramdisk.gz ./ramdisk.img
+          ls -la ramdisk.img
+          python3 - <<'EOF'
+          cmdline = "console=ttyMSM0,115200n8 earlycon=msm_geni_serial,0xA84000 androidboot.hardware=qcom androidboot.console=ttyMSM0 video=vfb:640x400,bpp=32,memsize=3072000 msm_rtb.filter=0x237 ehci-hcd.park=3 lpm_levels.sleep_disabled=1 service_locator.enable=1 swiotlb=2048 androidboot.configfs=true loop.max_part=7 androidboot.usbcontroller=a600000.dwc3 buildvariant=user androidboot.verifiedbootstate=green androidboot.selinux=permissive"
+          assert 'androidboot.hardware=qcom' in cmdline and 'permissive' in cmdline
+          assert 'enforcing' not in cmdline, 'cmdline 误含 enforcing'
+          open('cmdline.txt','w').write(cmdline)
+          print('cmdline:', len(cmdline))
+          EOF
+          python3 tools/mkbootimg.py \
+            --kernel $WORKSPACE/out/arch/arm64/boot/Image.gz-dtb \
+            --ramdisk ramdisk.img \
+            --cmdline "$(cat cmdline.txt)" \
+            --base 0 --header_version 1 --os_version 0x14000149 --pagesize 4096 \
+            -o boot.img
+          python3 - <<'EOF'
+          import struct
+          d = open('boot.img','rb').read()
+          assert d[:8] == b'ANDROID!', 'magic 错误'
+          ps = struct.unpack_from('<I', d, 0x24)[0]
+          k = open('out/arch/arm64/boot/Image.gz-dtb','rb').read()
+          assert d[ps:ps+len(k)] == k, 'kernel 段不一致'
+          cmd = d[0x40:0x240].split(b'\x00')[0].decode()
+          assert 'permissive' in cmd, 'boot.img 头缺 permissive'
+          assert 'enforcing' not in cmd, 'boot.img 头误含 enforcing'
+          print('boot.img: %d bytes | kernel=%d ps=%d | cmdline OK' % (len(d), len(k), ps))
+          EOF
+          ls -la boot.img
+
+      - name: "💙 Upload artifact"
+        uses: actions/upload-artifact@v4
+        with:
+          name: polaris-staging
+          path: |
+            ${{ env.WORKSPACE }}/*.zip
+            ${{ env.WORKSPACE }}/boot.img
+          if-no-files-found: error
+          retention-days: 7
