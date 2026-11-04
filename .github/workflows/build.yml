@@ -104,7 +104,7 @@ jobs:
       - name: "📦 Package boot.img (mkbootimg, 洗 cmdline)"
         run: |
           cd $WORKSPACE
-          cp tools/stock-ramdisk.gz ./ramdisk.img
+          cp packaging/stock-ramdisk.gz ./ramdisk.img
           ls -la ramdisk.img
           python3 - <<'EOF'
           cmdline = "console=ttyMSM0,115200n8 earlycon=msm_geni_serial,0xA84000 androidboot.hardware=qcom androidboot.console=ttyMSM0 video=vfb:640x400,bpp=32,memsize=3072000 msm_rtb.filter=0x237 ehci-hcd.park=3 lpm_levels.sleep_disabled=1 service_locator.enable=1 swiotlb=2048 androidboot.configfs=true loop.max_part=7 androidboot.usbcontroller=a600000.dwc3 buildvariant=user androidboot.verifiedbootstate=green androidboot.selinux=permissive"
@@ -113,7 +113,7 @@ jobs:
           open('cmdline.txt','w').write(cmdline)
           print('cmdline:', len(cmdline))
           EOF
-          python3 tools/mkbootimg.py \
+          python3 packaging/mkbootimg.py \
             --kernel $WORKSPACE/out/arch/arm64/boot/Image.gz-dtb \
             --ramdisk ramdisk.img \
             --cmdline "$(cat cmdline.txt)" \
