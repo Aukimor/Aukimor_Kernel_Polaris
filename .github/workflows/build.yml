@@ -4,9 +4,9 @@ on:
   workflow_dispatch:
     inputs:
       ksu:
-        description: '带 KSU root（默认 true，false 则关闭）'
+        description: '带 KSU root（默认 false=不带，true 则开启）'
         required: false
-        default: 'true'
+        default: 'false'
 
 permissions:
   contents: read
