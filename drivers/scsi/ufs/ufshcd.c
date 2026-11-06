@@ -1746,10 +1746,6 @@ static void __ufshcd_release(struct ufs_hba *hba, bool no_sched)
 		|| ufshcd_eh_in_progress(hba) || no_sched)
 		return;
 
-	/* fc55974ee: CLKS_OFF 状态下不重复请求 REQ_CLKS_OFF，避免 hibern8_enter 失败 */
-	if (hba->clk_gating.state == CLKS_OFF)
-		return;
-
 	hba->clk_gating.state = REQ_CLKS_OFF;
 	trace_ufshcd_clk_gating(dev_name(hba->dev), hba->clk_gating.state);
 	hba->ufs_stats.clk_rel.ts = ktime_get();
@@ -1874,7 +1870,7 @@ static ssize_t ufshcd_clkgate_enable_store(struct device *dev,
 		goto out;
 
 	if (value)
-		__ufshcd_release(hba, false);	/* b78d30deb: 锁内调无锁版, 恢复 gate 定时器 */
+		hba->clk_gating.active_reqs--;
 	else
 		hba->clk_gating.active_reqs++;
 
