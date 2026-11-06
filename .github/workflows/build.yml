@@ -40,8 +40,49 @@ jobs:
           echo "== KSU 子模块:"
           (cd KernelSU && git log --oneline -1) || echo "无 KernelSU 子模块"
 
-      - name: "⏰ Setup AnyKernel3 (unknownbaka 官方模板)"
-        run: git clone --depth=1 https://github.com/unknownbaka/AnyKernel3 $ANYKERNEL_NAME
+      - name: "⏰ Setup AnyKernel3 (polaris 定制)"
+        run: |
+          git clone --depth=1 https://github.com/unknownbaka/AnyKernel3 $ANYKERNEL_NAME
+          cat > $ANYKERNEL_NAME/anykernel.sh <<'EOF'
+### AnyKernel3 Ramdisk Mod Script
+## osm0sis @ xda-developers
+
+### AnyKernel setup
+# global properties
+properties() { '
+kernel.string=Aukimor Kernel for Mix2S (polaris) 4.9.337 Utopia Theta
+do.devicecheck=1
+do.refresh_rate=
+do.dts_backup=
+do.modules=0
+do.systemless=1
+do.cleanup=1
+do.cleanuponabort=0
+device.name1=polaris
+device.name2=dipper
+device.name3=
+device.name4=
+device.name5=
+supported.versions=
+supported.patchlevels=
+supported.vendorpatchlevels=
+'; } # end properties
+
+### AnyKernel install
+block=/dev/block/bootdevice/by-name/boot;
+is_slot_device=0;
+ramdisk_compression=auto;
+patch_vbmeta_flag=auto;
+
+# import functions/variables and setup patching - see for reference (DO NOT REMOVE)
+. tools/ak3-core.sh;
+
+# boot install
+dump_boot; # use split_boot to skip ramdisk unpack, e.g. for devices with init_boot ramdisk
+
+write_boot; # use flash_boot to skip ramdisk repack, e.g. for devices with init_boot ramdisk
+## end boot install
+EOF
 
       - name: "💫 Get toolchain (clang-r614150, 对齐官方)"
         run: |
@@ -117,7 +158,7 @@ jobs:
             --kernel $WORKSPACE/out/arch/arm64/boot/Image.gz-dtb \
             --ramdisk ramdisk.img \
             --cmdline "$(cat cmdline.txt)" \
-            --base 0 --header_version 1 --os_version 0x14000149 --pagesize 4096 \
+            --base 0 --header_version 1 --os_version "10.0.0" --pagesize 4096 \
             -o boot.img
           python3 - <<'EOF'
           import struct
@@ -142,4 +183,5 @@ jobs:
             ${{ env.WORKSPACE }}/boot.img
           if-no-files-found: error
           retention-days: 7
+
 
