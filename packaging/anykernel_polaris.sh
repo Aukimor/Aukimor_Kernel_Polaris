@@ -13,7 +13,6 @@ do.systemless=1
 do.cleanup=1
 do.cleanuponabort=0
 device.name1=polaris
-device.name2=dipper
 device.name3=
 device.name4=
 device.name5=
