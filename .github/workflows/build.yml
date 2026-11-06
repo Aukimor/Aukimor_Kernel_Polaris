@@ -103,7 +103,7 @@ jobs:
         working-directory: ${{ env.ANYKERNEL_NAME }}
         run: |
           cp $WORKSPACE/out/arch/arm64/boot/Image.gz-dtb ./Image.gz-dtb
-          zip -r -9 $WORKSPACE/${{ env.KERNEL_DEVICE }}-staging-${{ github.run_id }}.zip .
+          zip -r -9 $WORKSPACE/${{ env.KERNEL_DEVICE }}-staging-${{ github.run_id }}.zip . -x '.git/*'
 
       - name: "📦 Package boot.img (mkbootimg, 洗 cmdline)"
         run: |
@@ -115,6 +115,7 @@ jobs:
           assert 'androidboot.hardware=qcom' in cmdline and 'permissive' in cmdline
           assert 'enforcing' not in cmdline, 'cmdline 误含 enforcing'
           open('cmdline.txt','w').write(cmdline)
+
           print('cmdline:', len(cmdline))
           EOF
           python3 packaging/mkbootimg.py \
@@ -133,6 +134,8 @@ jobs:
           cmd = d[0x40:0x240].split(b'\x00')[0].decode()
           assert 'permissive' in cmd, 'boot.img 头缺 permissive'
           assert 'enforcing' not in cmd, 'boot.img 头误含 enforcing'
+          ov = struct.unpack_from('<I', d, 44)[0]
+          assert ov != 0, 'os_version 写入失败（=0）'
           print('boot.img: %d bytes | kernel=%d ps=%d | cmdline OK' % (len(d), len(k), ps))
           EOF
           ls -la boot.img
