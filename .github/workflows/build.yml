@@ -86,7 +86,7 @@ jobs:
           args="$args HOSTCC=$CB/clang"
           args="$args HOSTCXX=$CB/clang++"
           args="$args HOSTAR=$CB/llvm-ar"
-          args="$args KCFLAGS=-pipe"
+
           args="$args CLANG_TRIPLE=aarch64-linux-gnu-"
           args="$args CROSS_COMPILE=aarch64-linux-gnu-"
           args="$args CROSS_COMPILE_ARM32=arm-linux-gnueabi-"
