@@ -31,17 +31,21 @@ jobs:
       - name: "⭐ Install prerequisites"
         run: |
           sudo apt-get update
-          sudo apt-get install -y build-essential bc curl git zip gcc-aarch64-linux-gnu gcc-arm-linux-gnueabi libssl-dev zstd wget libfl-dev python3 libarchive-tools ccache
+          sudo apt-get install -y --no-install-recommends bc bison flex libssl-dev make git unzip cpio device-tree-compiler python3 xz-utils rsync ccache wget zip zstd
 
       - name: "🏷 源码版本"
         run: |
           git log --oneline -3
+          ccache -M 2G || true
 
-      - name: "💫 Cache ccache"
-        uses: actions/cache@v4
+      - name: "💫 Restore ccache"
+        id: ccache-restore
+        uses: actions/cache/restore@v4
         with:
           path: ~/.cache/ccache
           key: ccache-${{ runner.os }}
+          restore-keys: |
+            ccache-${{ runner.os }}-
 
       - name: "⏰ Setup AnyKernel3 (unknownbaka 官方模板)"
         run: git clone --depth=1 https://github.com/unknownbaka/AnyKernel3 $ANYKERNEL_NAME
@@ -53,14 +57,22 @@ jobs:
           path: ${{ env.CLANG_DIR }}
           key: clang-r614150-${{ runner.os }}
 
-      - name: "💫 Get toolchain (clang-r614150, 对齐官方)"
+      - name: "💫 Get toolchain (clang-r614150, +archive 快下)"
         if: steps.cache-clang.outputs.cache-hit != 'true'
         run: |
-          git clone --depth=1 -b main-kernel https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86 clang-prebuilt
-          mv clang-prebuilt/clang-r614150 $CLANG_DIR
-          rm -rf clang-prebuilt
+          URL="https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/heads/main-kernel/clang-r614150.tar.gz"
+          mkdir -p $CLANG_DIR
+          if wget -q -T 300 -O clang.tar.gz "$URL" && tar -xzf clang.tar.gz -C $CLANG_DIR 2>/dev/null && [ -x "$CLANG_DIR/bin/clang" ]; then
+            echo "✅ +archive 下载成功"
+          else
+            echo "⚠️ +archive 失败，回退 git clone..."
+            rm -rf $CLANG_DIR clang-prebuilt
+            git clone --depth=1 -b main-kernel https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86 clang-prebuilt
+            mv clang-prebuilt/clang-r614150 $CLANG_DIR
+            rm -rf clang-prebuilt
+          fi
           echo "$CLANG_DIR/bin" >> $GITHUB_PATH
-          ls $CLANG_DIR/bin | head
+          ls $CLANG_DIR/bin | head -5
 
       - name: "💫 补 PATH（cache 恢复时也要）"
         run: echo "$CLANG_DIR/bin" >> $GITHUB_PATH
@@ -84,6 +96,7 @@ jobs:
           args="$args HOSTCC=\"ccache $CB/clang\""
           args="$args HOSTCXX=$CB/clang++"
           args="$args HOSTAR=$CB/llvm-ar"
+          args="$args KCFLAGS=-pipe"
           args="$args CLANG_TRIPLE=aarch64-linux-gnu-"
           args="$args CROSS_COMPILE=aarch64-linux-gnu-"
           args="$args CROSS_COMPILE_ARM32=arm-linux-gnueabi-"
@@ -160,3 +173,13 @@ jobs:
             ${{ env.WORKSPACE }}/boot.img
           if-no-files-found: error
           retention-days: 7
+
+      - name: "📊 ccache 统计"
+        run: ccache -s || true
+
+      - name: "💾 Save ccache"
+        if: github.ref_name == 'main' && steps.ccache-restore.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: ~/.cache/ccache
+          key: ccache-${{ runner.os }}
