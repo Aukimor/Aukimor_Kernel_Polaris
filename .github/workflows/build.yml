@@ -23,10 +23,9 @@ jobs:
       ANYKERNEL_NAME: AnyKernel3
       CLANG_DIR: ${{ github.workspace }}/google-clang
     steps:
-      - name: "⭐ 取本仓库源码 + KernelSU 子模块"
+      - name: "⭐ 取本仓库源码"
         uses: actions/checkout@v4
         with:
-          submodules: recursive
           fetch-depth: 1
 
       - name: "⭐ Install prerequisites"
@@ -37,8 +36,6 @@ jobs:
       - name: "🏷 源码版本"
         run: |
           git log --oneline -3
-          echo "== KSU 子模块:"
-          (cd KernelSU && git log --oneline -1) || echo "无 KernelSU 子模块"
 
       - name: "⏰ Setup AnyKernel3 (unknownbaka 官方模板)"
         run: git clone --depth=1 https://github.com/unknownbaka/AnyKernel3 $ANYKERNEL_NAME
