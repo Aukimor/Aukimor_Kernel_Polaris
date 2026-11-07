@@ -105,6 +105,8 @@ jobs:
         working-directory: ${{ env.ANYKERNEL_NAME }}
         run: |
           rm -rf .git
+          sed -i 's/kernel.string=ExampleKernel for DeviceName/kernel.string=Aukimor Kernel for polaris/' anykernel.sh
+          sed -i 's/device.name1=codename/device.name1=polaris/' anykernel.sh
           cp $WORKSPACE/out/arch/arm64/boot/Image.gz-dtb ./Image.gz-dtb
           zip -r -9 $WORKSPACE/${{ env.KERNEL_DEVICE }}-staging-${{ github.run_id }}.zip .
 
