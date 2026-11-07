@@ -31,28 +31,11 @@ jobs:
       - name: "⭐ Install prerequisites"
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends bc bison flex libssl-dev make git unzip cpio device-tree-compiler python3 xz-utils rsync ccache wget zip zstd
-
-      - name: "🧩 ccache 符号链接包装（clang 直连，无引号问题）"
-        run: |
-          mkdir -p /usr/local/bin/ccache-bin
-          ln -sf /usr/bin/ccache /usr/local/bin/ccache-bin/clang
-          ln -sf /usr/bin/ccache /usr/local/bin/ccache-bin/clang++
-          echo "/usr/local/bin/ccache-bin" >> $GITHUB_PATH
+          sudo apt-get install -y --no-install-recommends bc bison flex libssl-dev make git unzip cpio device-tree-compiler python3 xz-utils rsync wget zip zstd
 
       - name: "🏷 源码版本"
         run: |
           git log --oneline -3
-          ccache -M 2G || true
-
-      - name: "💫 Restore ccache"
-        id: ccache-restore
-        uses: actions/cache/restore@v4
-        with:
-          path: ~/.cache/ccache
-          key: ccache-${{ runner.os }}
-          restore-keys: |
-            ccache-${{ runner.os }}-
 
       - name: "⏰ Setup AnyKernel3 (unknownbaka 官方模板)"
         run: git clone --depth=1 https://github.com/unknownbaka/AnyKernel3 $ANYKERNEL_NAME
@@ -91,7 +74,7 @@ jobs:
           args="-j$(nproc --all)"
           args="$args O=$WORKSPACE/out"
           args="$args ARCH=arm64"
-          args="$args CC=/usr/local/bin/ccache-bin/clang"
+          args="$args CC=$CB/clang"
           args="$args LD=$CB/ld.lld"
           args="$args AR=$CB/llvm-ar"
           args="$args NM=$CB/llvm-nm"
@@ -100,7 +83,7 @@ jobs:
           args="$args OBJDUMP=$CB/llvm-objdump"
           args="$args OBJSIZE=$CB/llvm-size"
           args="$args READELF=$CB/llvm-readelf"
-          args="$args HOSTCC=/usr/local/bin/ccache-bin/clang"
+          args="$args HOSTCC=$CB/clang"
           args="$args HOSTCXX=$CB/clang++"
           args="$args HOSTAR=$CB/llvm-ar"
           args="$args KCFLAGS=-pipe"
@@ -181,12 +164,3 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
-      - name: "📊 ccache 统计"
-        run: ccache -s || true
-
-      - name: "💾 Save ccache"
-        if: github.ref_name == 'main' && steps.ccache-restore.outputs.cache-hit != 'true'
-        uses: actions/cache/save@v4
-        with:
-          path: ~/.cache/ccache
-          key: ccache-${{ runner.os }}
