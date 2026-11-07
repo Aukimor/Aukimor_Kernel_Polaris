@@ -1,6 +1,6 @@
 VERSION = 4
 PATCHLEVEL = 9
-SUBLEVEL = 337
+SUBLEVEL = 186  # 伪装为官方版本（VINTF 与 config.gz 自洽，防加固SDK交叉校验）
 EXTRAVERSION =
 NAME = Roaring Lionus
 
