@@ -31,21 +31,39 @@ jobs:
       - name: "⭐ Install prerequisites"
         run: |
           sudo apt-get update
-          sudo apt-get install -y build-essential bc curl git zip gcc-aarch64-linux-gnu gcc-arm-linux-gnueabi libssl-dev zstd wget libfl-dev python3 libarchive-tools
+          sudo apt-get install -y build-essential bc curl git zip gcc-aarch64-linux-gnu gcc-arm-linux-gnueabi libssl-dev zstd wget libfl-dev python3 libarchive-tools ccache
 
       - name: "🏷 源码版本"
         run: |
           git log --oneline -3
 
+      - name: "💫 Cache ccache"
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ccache
+          key: ccache-${{ runner.os }}
+
       - name: "⏰ Setup AnyKernel3 (unknownbaka 官方模板)"
         run: git clone --depth=1 https://github.com/unknownbaka/AnyKernel3 $ANYKERNEL_NAME
 
+      - name: "💫 Cache clang-r614150"
+        id: cache-clang
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.CLANG_DIR }}
+          key: clang-r614150-${{ runner.os }}
+
       - name: "💫 Get toolchain (clang-r614150, 对齐官方)"
+        if: steps.cache-clang.outputs.cache-hit != 'true'
         run: |
           git clone --depth=1 -b main-kernel https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86 clang-prebuilt
           mv clang-prebuilt/clang-r614150 $CLANG_DIR
+          rm -rf clang-prebuilt
           echo "$CLANG_DIR/bin" >> $GITHUB_PATH
           ls $CLANG_DIR/bin | head
+
+      - name: "💫 补 PATH（cache 恢复时也要）"
+        run: echo "$CLANG_DIR/bin" >> $GITHUB_PATH
 
       - name: "😎 Set build args"
         id: generate-args
@@ -54,7 +72,7 @@ jobs:
           args="-j$(nproc --all)"
           args="$args O=$WORKSPACE/out"
           args="$args ARCH=arm64"
-          args="$args CC=$CB/clang"
+          args="$args CC=\"ccache $CB/clang\""
           args="$args LD=$CB/ld.lld"
           args="$args AR=$CB/llvm-ar"
           args="$args NM=$CB/llvm-nm"
@@ -63,7 +81,7 @@ jobs:
           args="$args OBJDUMP=$CB/llvm-objdump"
           args="$args OBJSIZE=$CB/llvm-size"
           args="$args READELF=$CB/llvm-readelf"
-          args="$args HOSTCC=$CB/clang"
+          args="$args HOSTCC=\"ccache $CB/clang\""
           args="$args HOSTCXX=$CB/clang++"
           args="$args HOSTAR=$CB/llvm-ar"
           args="$args CLANG_TRIPLE=aarch64-linux-gnu-"
@@ -81,7 +99,7 @@ jobs:
         env:
           KBUILD_BUILD_USER: builder
           KBUILD_BUILD_HOST: localhost
-        run: make ${{ steps.generate-args.outputs.args }} $DEFCONFIG_NAME
+        run: eval make ${{ steps.generate-args.outputs.args }} $DEFCONFIG_NAME
 
       - name: "🎶 Build kernel"
         working-directory: ${{ env.WORKSPACE }}
@@ -91,7 +109,7 @@ jobs:
           KBUILD_BUILD_VERSION: "1"
           KBUILD_BUILD_TIMESTAMP: "Wed Oct 28 04:25:26 UTC 2026"
           KBUILD_COMPILER_STRING: "Android (7612306, based on r428724) clang version 13.0.1 (https://android.googlesource.com/toolchain/llvm-project 6b0889cc0e9e868502342d9930a7717ff515e90b)"
-        run: make ${{ steps.generate-args.outputs.args }}
+        run: eval make ${{ steps.generate-args.outputs.args }}
 
       - name: "💛 Package AnyKernel3"
         working-directory: ${{ env.ANYKERNEL_NAME }}
