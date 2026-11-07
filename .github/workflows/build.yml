@@ -33,6 +33,13 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends bc bison flex libssl-dev make git unzip cpio device-tree-compiler python3 xz-utils rsync ccache wget zip zstd
 
+      - name: "🧩 ccache 符号链接包装（clang 直连，无引号问题）"
+        run: |
+          mkdir -p /usr/local/bin/ccache-bin
+          ln -sf /usr/bin/ccache /usr/local/bin/ccache-bin/clang
+          ln -sf /usr/bin/ccache /usr/local/bin/ccache-bin/clang++
+          echo "/usr/local/bin/ccache-bin" >> $GITHUB_PATH
+
       - name: "🏷 源码版本"
         run: |
           git log --oneline -3
@@ -84,7 +91,7 @@ jobs:
           args="-j$(nproc --all)"
           args="$args O=$WORKSPACE/out"
           args="$args ARCH=arm64"
-          args="$args CC=\"ccache $CB/clang\""
+          args="$args CC=/usr/local/bin/ccache-bin/clang"
           args="$args LD=$CB/ld.lld"
           args="$args AR=$CB/llvm-ar"
           args="$args NM=$CB/llvm-nm"
@@ -93,7 +100,7 @@ jobs:
           args="$args OBJDUMP=$CB/llvm-objdump"
           args="$args OBJSIZE=$CB/llvm-size"
           args="$args READELF=$CB/llvm-readelf"
-          args="$args HOSTCC=\"ccache $CB/clang\""
+          args="$args HOSTCC=/usr/local/bin/ccache-bin/clang"
           args="$args HOSTCXX=$CB/clang++"
           args="$args HOSTAR=$CB/llvm-ar"
           args="$args KCFLAGS=-pipe"
@@ -112,7 +119,7 @@ jobs:
         env:
           KBUILD_BUILD_USER: builder
           KBUILD_BUILD_HOST: localhost
-        run: eval make ${{ steps.generate-args.outputs.args }} $DEFCONFIG_NAME
+        run: make ${{ steps.generate-args.outputs.args }} $DEFCONFIG_NAME
 
       - name: "🎶 Build kernel"
         working-directory: ${{ env.WORKSPACE }}
@@ -122,7 +129,7 @@ jobs:
           KBUILD_BUILD_VERSION: "1"
           KBUILD_BUILD_TIMESTAMP: "Wed Oct 28 04:25:26 UTC 2026"
           KBUILD_COMPILER_STRING: "Android (7612306, based on r428724) clang version 13.0.1 (https://android.googlesource.com/toolchain/llvm-project 6b0889cc0e9e868502342d9930a7717ff515e90b)"
-        run: eval make ${{ steps.generate-args.outputs.args }}
+        run: make ${{ steps.generate-args.outputs.args }}
 
       - name: "💛 Package AnyKernel3"
         working-directory: ${{ env.ANYKERNEL_NAME }}
