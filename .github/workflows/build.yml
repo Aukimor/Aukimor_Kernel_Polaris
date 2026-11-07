@@ -71,18 +71,10 @@ jobs:
           args="$args CROSS_COMPILE_ARM32=arm-linux-gnueabi-"
           echo "args=$args" >> $GITHUB_OUTPUT
 
-      - name: "🚫 关闭 KSU"
-        if: inputs.ksu == 'false'
+      - name: "🚫 KSU 检查（defconfig 已写死关闭）"
         working-directory: ${{ env.WORKSPACE }}
         run: |
-          sed -i 's/^CONFIG_KSU=y/# CONFIG_KSU is not set/' arch/arm64/configs/polaris_defconfig
-          sed -i 's/^CONFIG_KSU_HEURISTIC_IN_TREE_BUILD=y/# CONFIG_KSU_HEURISTIC_IN_TREE_BUILD is not set/' arch/arm64/configs/polaris_defconfig
-          sed -i 's/^CONFIG_KSU_TAMPER_SYSCALL_TABLE=y/# CONFIG_KSU_TAMPER_SYSCALL_TABLE is not set/' arch/arm64/configs/polaris_defconfig
-          sed -i 's/^CONFIG_KSU_LSM_SECURITY_HOOKS=y/# CONFIG_KSU_LSM_SECURITY_HOOKS is not set/' arch/arm64/configs/polaris_defconfig
-          sed -i 's/^CONFIG_KSU_FEATURE_SULOG=y/# CONFIG_KSU_FEATURE_SULOG is not set/' arch/arm64/configs/polaris_defconfig
-          sed -i 's/^CONFIG_KSU_FEATURE_ADBROOT=y/# CONFIG_KSU_FEATURE_ADBROOT is not set/' arch/arm64/configs/polaris_defconfig
-          echo "== KSU 行残留检查（应无 =y）："
-          rg -n '^CONFIG_KSU.*=y' arch/arm64/configs/polaris_defconfig || echo "全部关闭"
+          rg -n '^CONFIG_KSU.*=y' arch/arm64/configs/polaris_defconfig && { echo "KSU 残留 =y 错误"; exit 1; } || echo "全部关闭"
 
       - name: "👍 Make defconfig"
         working-directory: ${{ env.WORKSPACE }}
