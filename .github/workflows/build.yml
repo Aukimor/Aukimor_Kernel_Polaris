@@ -96,6 +96,9 @@ jobs:
         env:
           KBUILD_BUILD_USER: builder
           KBUILD_BUILD_HOST: localhost
+          KBUILD_BUILD_VERSION: "1"
+          KBUILD_BUILD_TIMESTAMP: "Wed Oct 28 04:25:26 UTC 2026"
+          KBUILD_COMPILER_STRING: "Android (7612306, based on r428724) clang version 13.0.1 (https://android.googlesource.com/toolchain/llvm-project 6b0889cc0e9e868502342d9930a7717ff515e90b)"
         run: make ${{ steps.generate-args.outputs.args }}
 
       - name: "💛 Package AnyKernel3"
