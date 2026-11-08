@@ -122,38 +122,6 @@ jobs:
           cp $WORKSPACE/out/arch/arm64/boot/Image.gz-dtb ./Image.gz-dtb
           zip -r -9 $WORKSPACE/${{ env.KERNEL_DEVICE }}-staging-${{ github.run_id }}.zip .
 
-      - name: "📦 Package boot.img (mkbootimg, 洗 cmdline)"
-        run: |
-          cd $WORKSPACE
-          cp packaging/stock-ramdisk.gz ./ramdisk.img
-          ls -la ramdisk.img
-          python3 - <<'EOF'
-          cmdline = "console=ttyMSM0,115200n8 earlycon=msm_geni_serial,0xA84000 androidboot.hardware=qcom androidboot.console=ttyMSM0 video=vfb:640x400,bpp=32,memsize=3072000 msm_rtb.filter=0x237 ehci-hcd.park=3 lpm_levels.sleep_disabled=1 service_locator.enable=1 swiotlb=2048 androidboot.configfs=true loop.max_part=7 androidboot.usbcontroller=a600000.dwc3 buildvariant=user androidboot.verifiedbootstate=green androidboot.selinux=permissive"
-          assert 'androidboot.hardware=qcom' in cmdline and 'permissive' in cmdline
-          assert 'enforcing' not in cmdline, 'cmdline 误含 enforcing'
-          open('cmdline.txt','w').write(cmdline)
-          print('cmdline:', len(cmdline))
-          EOF
-          python3 packaging/mkbootimg.py \
-            --kernel $WORKSPACE/out/arch/arm64/boot/Image.gz-dtb \
-            --ramdisk ramdisk.img \
-            --cmdline "$(cat cmdline.txt)" \
-            --base 0 --header_version 1 --os_version 0x14000149 --pagesize 4096 \
-            -o boot.img
-          python3 - <<'EOF'
-          import struct
-          d = open('boot.img','rb').read()
-          assert d[:8] == b'ANDROID!', 'magic 错误'
-          ps = struct.unpack_from('<I', d, 0x24)[0]
-          k = open('out/arch/arm64/boot/Image.gz-dtb','rb').read()
-          assert d[ps:ps+len(k)] == k, 'kernel 段不一致'
-          cmd = d[0x40:0x240].split(b'\x00')[0].decode()
-          assert 'permissive' in cmd, 'boot.img 头缺 permissive'
-          assert 'enforcing' not in cmd, 'boot.img 头误含 enforcing'
-          print('boot.img: %d bytes | kernel=%d ps=%d | cmdline OK' % (len(d), len(k), ps))
-          EOF
-          ls -la boot.img
-
       - name: "💙 Upload artifact"
         uses: actions/upload-artifact@v4
         with:
