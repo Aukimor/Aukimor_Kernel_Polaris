@@ -164,5 +164,13 @@ int main(void)
   DEFINE(VDSO_TZ_MINWEST,	offsetof(struct vdso_data, tz_minuteswest));
   DEFINE(VDSO_TZ_DSTTIME,	offsetof(struct vdso_data, tz_dsttime));
   DEFINE(VDSO_USE_SYSCALL,	offsetof(struct vdso_data, use_syscall));
+  BLANK();
+  DEFINE(TVAL_TV_SEC,		offsetof(struct timeval, tv_sec));
+  DEFINE(TVAL_TV_USEC,		offsetof(struct timeval, tv_usec));
+  DEFINE(TSPEC_TV_SEC,		offsetof(struct timespec, tv_sec));
+  DEFINE(TSPEC_TV_NSEC,		offsetof(struct timespec, tv_nsec));
+  BLANK();
+  DEFINE(TZ_MINWEST,		offsetof(struct timezone, tz_minuteswest));
+  DEFINE(TZ_DSTTIME,		offsetof(struct timezone, tz_dsttime));
   return 0;
 }
